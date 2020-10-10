@@ -29,6 +29,13 @@ class Actions:
     End = 2
 
 
+class GridStates:
+    Edit = 0
+    StartAlgorithm = 1
+    RunAlgorithm = 2
+
+
 # Macros
-SIZE = (WIDTH, HEIGHT) = 800, 600
-CELL_SIZE = 20
+CELL_SIZE = 28
+SIZE = (WIDTH, HEIGHT) = CELL_SIZE * 48, CELL_SIZE * 31
+GRID_WIDTH, GRID_HEIGHT = CELL_SIZE * 32, CELL_SIZE * 24

@@ -1,4 +1,7 @@
 from Utilities.Constants import CellStates
+from random import shuffle
+
+movement_offsets = [(0, 1), (0, -1), (1, 0), (-1, 0)]
 
 
 def breadth_first_search(grid, start, end, cells_per_row, cells_per_col):
@@ -11,8 +14,9 @@ def breadth_first_search(grid, start, end, cells_per_row, cells_per_col):
         current = cx, cy = queue.pop(0)
         found = False
 
+        shuffle(movement_offsets)
         neighbors = [
-            (cx + x_offset, cy + y_offset) for x_offset, y_offset in [(0, 1), (0, -1), (1, 0), (-1, 0)]  # 4-Dir
+            (cx + x_offset, cy + y_offset) for x_offset, y_offset in movement_offsets  # 4-Dir
             if 0 <= cx + x_offset < cells_per_row
             and 0 <= cy + y_offset < cells_per_col
             and grid[cy + y_offset][cx + x_offset] in (CellStates.Free, CellStates.Start, CellStates.End)

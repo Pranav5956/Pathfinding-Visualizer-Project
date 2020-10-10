@@ -1,97 +1,145 @@
 import pygame
-from random import randint, randrange
-from Utilities.Constants import CellStates, Actions, Colors, Orientations
-from Utilities.Constants import SIZE, WIDTH, HEIGHT, CELL_SIZE
-from Utilities.Algorithms import Algorithms
+from Utilities.Constants import CellStates, Actions, Colors
 
 
-class Grid:
-    CellsPerRow, CellsPerCol = WIDTH // CELL_SIZE, HEIGHT // CELL_SIZE
+class GridParent:
+    def __init__(self, x, y, width, height, window, cell_size, grid=None):
+        self.x, self.y = x, y
+        self.width, self.height = width, height
+        self.cells_per_row, self.cells_per_col, self.cell_size = width // cell_size, height // cell_size, cell_size
+        if grid is None:
+            self.grid = [[CellStates.Free for _ in range(self.cells_per_row)] for _ in range(self.cells_per_col)]
+        else:
+            self.grid = grid
 
-    def __init__(self, window, row, col):
-        # Initialize the grid
         self.window = window
-        self.grid = [[CellStates.Free for _ in range(Grid.CellsPerRow)] for _ in range(Grid.CellsPerCol)]
-        self.x, self.y = row * WIDTH, col * HEIGHT
 
         # Create a grid at half transparency
-        self.grid_surface = pygame.Surface(SIZE, pygame.SRCALPHA)
-        for cell in range(Grid.CellsPerRow + 1):
+        self.grid_surface = pygame.Surface((width, height), pygame.SRCALPHA)
+        for cell in range(self.cells_per_row):
             pygame.draw.line(
                 self.grid_surface,
                 Colors.BlackHalfAlpha,
-                (self.x + cell * CELL_SIZE, self.y + 0),
-                (self.x + cell * CELL_SIZE, self.y + HEIGHT)
+                (cell * self.cell_size, 0),
+                (cell * self.cell_size, height)
             )
-        for cell in range(Grid.CellsPerCol + 1):
+        for cell in range(self.cells_per_col):
             pygame.draw.line(
                 self.grid_surface,
                 Colors.BlackHalfAlpha,
-                (self.x + 0, self.y + cell * CELL_SIZE),
-                (self.x + WIDTH, self.y + cell * CELL_SIZE)
+                (0, cell * self.cell_size),
+                (width, cell * self.cell_size)
             )
 
-        # State initialization
-        self.start = None
-        self.end = None
-        self.action = Actions.Start
-
-        # Algorithm Initialization
-        self.algorithm = None
+    def update(self):
+        self.draw()
 
     def draw(self):
-        # Execute the algorithm if it is running
-        if self.algorithm is not None:
+        # Draw the squares
+        for col in range(self.cells_per_col):
+            for row in range(self.cells_per_row):
+                if self.grid[col][row] == CellStates.Block:
+                    pygame.draw.rect(self.window, Colors.Black,
+                                     (self.x + row * self.cell_size, self.y + col * self.cell_size, self.cell_size, self.cell_size))
+                elif self.grid[col][row] == CellStates.Start:
+                    pygame.draw.rect(self.window, Colors.Teal,
+                                     (self.x + row * self.cell_size, self.y + col * self.cell_size, self.cell_size, self.cell_size))
+                elif self.grid[col][row] == CellStates.End:
+                    pygame.draw.rect(self.window, Colors.Yellow,
+                                     (self.x + row * self.cell_size, self.y + col * self.cell_size, self.cell_size, self.cell_size))
+                elif self.grid[col][row] == CellStates.Neighbor:
+                    pygame.draw.rect(self.window, Colors.Red,
+                                     (self.x + row * self.cell_size, self.y + col * self.cell_size, self.cell_size, self.cell_size))
+                elif self.grid[col][row] == CellStates.ShortestPath:
+                    pygame.draw.rect(self.window, Colors.Green,
+                                     (self.x + row * self.cell_size, self.y + col * self.cell_size, self.cell_size, self.cell_size))
+
+        # Draw the grid overlay
+        self.window.blit(self.grid_surface, (self.x, self.y))
+
+
+class GridDisplayAlgorithm(GridParent):
+    def __init__(self, x, y, width, height, window, cell_size, start, end, algorithm, grid=None):
+        super().__init__(x, y, width, height, window, cell_size, grid)
+        self.grid_copy = [[cell for cell in row] for row in self.grid]
+        self.start, self.end = start, end
+        self.algorithm = algorithm
+        self.algorithm_execution = None
+        self.algorithm_running = False
+
+        (sx, sy), (ex, ey) = start, end
+        self.grid[sy][sx] = CellStates.Start
+        self.grid[ey][ex] = CellStates.End
+
+    def update(self):
+        if self.algorithm_running:
             try:
-                pos, state = next(self.algorithm)
+                pos, state = next(self.algorithm_execution)
 
                 if pos != self.start and pos != self.end:
                     px, py = pos
                     self.grid[py][px] = state
             except StopIteration:
-                self.algorithm = None
+                self.algorithm_running = False
 
-        # Draw the squares
-        for col in range(Grid.CellsPerCol):
-            for row in range(Grid.CellsPerRow):
-                if self.grid[col][row] == CellStates.Block:
-                    pygame.draw.rect(self.window, Colors.Black, (self.x + row * CELL_SIZE, self.y + col * CELL_SIZE, CELL_SIZE, CELL_SIZE))
-                elif self.grid[col][row] == CellStates.Start:
-                    pygame.draw.rect(self.window, Colors.Teal, (self.x + row * CELL_SIZE, self.y + col * CELL_SIZE, CELL_SIZE, CELL_SIZE))
-                elif self.grid[col][row] == CellStates.End:
-                    pygame.draw.rect(self.window, Colors.Yellow, (self.x + row * CELL_SIZE, self.y + col * CELL_SIZE, CELL_SIZE, CELL_SIZE))
-                elif self.grid[col][row] == CellStates.Neighbor:
-                    pygame.draw.rect(self.window, Colors.Red, (self.x + row * CELL_SIZE, self.y + col * CELL_SIZE, CELL_SIZE, CELL_SIZE))
-                elif self.grid[col][row] == CellStates.ShortestPath:
-                    pygame.draw.rect(self.window, Colors.Green, (self.x + row * CELL_SIZE, self.y + col * CELL_SIZE, CELL_SIZE, CELL_SIZE))
+        super().update()
 
-        # Draw the grid overlay
-        self.window.blit(self.grid_surface, (0, 0))
+    def run_pathfinding_algorithm(self):
+        if not self.algorithm_running:
+            if self.grid != self.grid_copy:
+                self.grid = [[cell for cell in row] for row in self.grid_copy]
+            self.algorithm_running = True
+            self.algorithm_execution = self.algorithm(self.grid, self.start, self.end, self.cells_per_row, self.cells_per_col)
+
+
+class GridEdit(GridParent):
+    def __init__(self, x, y, width, height, window, cell_size, grid=None):
+        super().__init__(x, y, width, height, window, cell_size, grid)
+        self.action = Actions.Start
+
+        self.start, self.end = None, None
+
+        start_exists, end_exists = False, False
+
+        if grid is not None:
+            for row in range(self.cells_per_col):
+                for col in range(self.cells_per_row):
+                    if self.grid[row][col] == CellStates.Start and not start_exists:
+                        self.start = (col, row)
+                        self.action = Actions.End
+                        start_exists = True
+                    elif self.grid[row][col] == CellStates.End and not end_exists:
+                        self.end = (col, row)
+                        self.action = Actions.Start
+                        end_exists = True
+
+                    if start_exists and end_exists:
+                        self.action = Actions.Block
+                        break
+
+                if start_exists and end_exists:
+                    break
+
+    def update(self):
+        super().update()
 
         # Draw helper squares
         if not self.start:
-            row, col = ((pos - offset) // CELL_SIZE for pos, offset in zip(pygame.mouse.get_pos(), [self.x, self.y]))
-            pygame.draw.rect(self.window, Colors.Teal, (self.x + row * CELL_SIZE, self.y + col * CELL_SIZE, CELL_SIZE, CELL_SIZE))
+            mouse_pos = (mx, my) = pygame.mouse.get_pos()
+
+            if self.x < mx < self.x + self.width and self.y < my < self.y + self.height:
+                row, col = ((pos - offset) // self.cell_size for pos, offset in zip(mouse_pos, [self.x, self.y]))
+                pygame.draw.rect(self.window, Colors.Teal,
+                                 (self.x + row * self.cell_size, self.y + col * self.cell_size, self.cell_size, self.cell_size))
         elif not self.end:
-            row, col = ((pos - offset) // CELL_SIZE for pos, offset in zip(pygame.mouse.get_pos(), [self.x, self.y]))
-            pygame.draw.rect(self.window, Colors.Yellow, (self.x + row * CELL_SIZE, self.y + col * CELL_SIZE, CELL_SIZE, CELL_SIZE))
+            mouse_pos = (mx, my) = pygame.mouse.get_pos()
 
-        pygame.display.update()
+            if self.x < mx < self.x + self.width and self.y < my < self.y + self.height:
+                row, col = ((pos - offset) // self.cell_size for pos, offset in zip(mouse_pos, [self.x, self.y]))
+                pygame.draw.rect(self.window, Colors.Yellow,
+                                 (self.x + row * self.cell_size, self.y + col * self.cell_size, self.cell_size, self.cell_size))
 
-    def run_algorithm(self, algorithm):
-        if self.algorithm is None:
-            if algorithm == Algorithms.ClearGrid:
-                self.algorithm = algorithm(Grid.CellsPerRow, Grid.CellsPerCol)
-            else:
-                self.algorithm = algorithm(self.grid, self.start, self.end, Grid.CellsPerRow, Grid.CellsPerCol)
-
-    def clear_grid(self):
-        for col in range(Grid.CellsPerCol):
-            for row in range(Grid.CellsPerRow):
-                if self.grid[col][row] not in (CellStates.Start, CellStates.End):
-                    self.grid[col][row] = CellStates.Free
-
-    def on_click(self, row, col):
+    def click(self, row, col):
         if self.action == Actions.Start and self.start is None:
             if not self.grid[col][row] == CellStates.End:
                 self.grid[col][row] = CellStates.Start
@@ -121,47 +169,3 @@ class Grid:
                 self.action = Actions.End
             else:
                 self.grid[col][row] = CellStates.Free if self.grid[col][row] == CellStates.Block else CellStates.Block
-
-    def outer_wall_generation(self):
-        for col, row in [(0, x) for x in range(Grid.CellsPerRow)] + [(y, Grid.CellsPerRow - 1) for y in range(1, Grid.CellsPerCol)] + \
-                        [(Grid.CellsPerCol - 1, x) for x in range(Grid.CellsPerRow - 2, -1, -1)] + [(y, 0) for y in range(Grid.CellsPerCol - 2, 0, -1)]:
-            if not (row, col) == self.start and not (row, col) == self.end:
-                self.grid[col][row] = CellStates.Block
-                self.draw()
-
-    def recursive_division_maze_generation(self, x, y, width, height, orientation=Orientations.Horizontal):
-        if width < 2 or height < 2:
-            return
-
-        wall_x = x + (0 if orientation == Orientations.Horizontal else randint(0, width - 2))
-        wall_y = y + (0 if orientation == Orientations.Vertical else randint(0, height - 2))
-        print(x, y, wall_x, wall_y)
-
-        passage_x = wall_x + (randrange(0, width) if orientation == Orientations.Horizontal else 0)
-        passage_y = wall_y + (randrange(0, height) if orientation == Orientations.Vertical else 0)
-
-        length = width if orientation == Orientations.Horizontal else height
-
-        while length > 0:
-            length -= 1
-            if (wall_x, wall_y) != (passage_x, passage_y) and (wall_x, wall_y) != self.start and (wall_x, wall_y) != self.end:
-                self.grid[wall_y][wall_x] = CellStates.Block
-            wall_x, wall_y = wall_x + (orientation == Orientations.Horizontal), wall_y + (orientation == Orientations.Vertical)
-            self.draw()
-
-        w = width if orientation == Orientations.Horizontal else wall_x - x + 1
-        h = height if orientation == Orientations.Vertical else wall_y - y + 1
-        self.recursive_division_maze_generation(
-            x, y,
-            w, h,
-            Orientations.Horizontal if w < h else Orientations.Vertical
-        )
-
-        w = width if orientation == Orientations.Horizontal else x + width - wall_x - 1
-        h = height if orientation == Orientations.Vertical else y + height - wall_y - 1
-        self.recursive_division_maze_generation(
-            x if Orientations.Horizontal else wall_x + 1,
-            y if Orientations.Vertical else wall_y + 1,
-            w, h,
-            Orientations.Horizontal if w < h else Orientations.Vertical
-        )
