@@ -1,6 +1,7 @@
 from Utilities.Grid import GridDisplayAlgorithm, GridEdit, pygame
 from Utilities.Constants import SIZE, WIDTH, HEIGHT, GRID_WIDTH, GRID_HEIGHT, CELL_SIZE, Colors, GridStates
 from Utilities.Algorithms import Algorithms
+import time
 
 
 class Controller:
@@ -9,7 +10,8 @@ class Controller:
 
     def __init__(self, window):
         self.window = window
-        self.font = pygame.font.Font(None, CELL_SIZE)
+        self.title_font = pygame.font.Font(None, (8 * CELL_SIZE) // 7)
+        self.desc_font = pygame.font.Font(None, (4 * CELL_SIZE) // 5)
         self.state = GridStates.Edit
 
         self.running = True
@@ -30,6 +32,8 @@ class Controller:
         ]
         self.algorithm_grids = None
         self.algorithms_completed = True
+        self.timer = None
+        self.completion_times = [None] * 4
 
         self._update()
 
@@ -82,9 +86,14 @@ class Controller:
                             for i, algorithm in enumerate(self.algorithms)
                         ]
 
+                    if event.type == pygame.KEYDOWN and event.key == pygame.K_LCTRL:
+                        self.grid.clear()
+
                 if self.state is GridStates.StartAlgorithm:
                     if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
                         self.state = GridStates.RunAlgorithm
+                        self.timer = time.time()
+                        self.completion_times = [None] * 4
                         for grid in self.algorithm_grids:
                             grid.run_pathfinding_algorithm()
                         self.algorithms_completed = False
@@ -93,6 +102,7 @@ class Controller:
                         self.state = GridStates.Edit
                         self.algorithm_grids = None
                         self.algorithms_completed = True
+                        self.completion_times = [None] * 4
 
             if self.state is GridStates.Edit:
                 self.grid.update()
@@ -102,15 +112,36 @@ class Controller:
 
             elif self.state is GridStates.RunAlgorithm:
                 self.algorithms_completed = True
-                for grid in self.algorithm_grids:
+                for i, grid in enumerate(self.algorithm_grids):
                     grid.update()
                     self.algorithms_completed &= not grid.algorithm_running
 
+                    if not grid.algorithm_running and self.completion_times[i] is None:
+                        self.completion_times[i] = time.time()
+
+                    x = Controller.AlgoGridX + (i % 2) * (Controller.AlgoGridPadding + GRID_WIDTH) // 2
+                    y = Controller.AlgoGridY + (i // 2) * (Controller.AlgoGridPadding + GRID_HEIGHT) // 2
+                    if self.completion_times[i] is not None:
+                        text = self.desc_font.render("Finish Time: %.2fs" % (self.completion_times[i] - self.timer), True, Colors.Green)
+                    elif self.timer is not None:
+                        text = self.desc_font.render("Time Elapsed: %.2fs" % (time.time() - self.timer), True, Colors.Red)
+                    self.window.blit(text, (x + GRID_WIDTH // 2 - text.get_width(),
+                                            y - Controller.AlgoGridPadding // 10 - text.get_height() // 2))
+
                 if self.algorithms_completed:
                     self.state = GridStates.StartAlgorithm
+                    # self.timer = None
+
             elif self.state is GridStates.StartAlgorithm:
-                for grid in self.algorithm_grids:
+                for i, grid in enumerate(self.algorithm_grids):
                     grid.draw()
+
+                    if self.completion_times[i] is not None:
+                        x = Controller.AlgoGridX + (i % 2) * (Controller.AlgoGridPadding + GRID_WIDTH) // 2
+                        y = Controller.AlgoGridY + (i // 2) * (Controller.AlgoGridPadding + GRID_HEIGHT) // 2
+                        text = self.desc_font.render("Finish Time: %.2fs" % (self.completion_times[i] - self.timer), True, Colors.Green)
+                        self.window.blit(text, (x + GRID_WIDTH // 2 - text.get_width(),
+                                                y - Controller.AlgoGridPadding // 10 - text.get_height() // 2))
 
             if self.state in (GridStates.StartAlgorithm, GridStates.RunAlgorithm):
                 for row, col in [(0, 0), (1, 0), (0, 1), (1, 1)]:
@@ -122,15 +153,19 @@ class Controller:
 
                     algorithm = self.algorithm_grids[row + 2 * col]
                     if algorithm.algorithm == Algorithms.BreadthFirstSearch:
-                        text = self.font.render("Breadth-First Search", True, Colors.Red)
+                        text = self.title_font.render("Breadth-First Search", True, Colors.Blue)
+                        text2 = self.desc_font.render("Guarantees shortest-path", True, Colors.BlackHalfAlpha)
                     elif algorithm.algorithm == Algorithms.DepthFirstSearch:
-                        text = self.font.render("Depth-First Search", True, Colors.Red)
+                        text = self.title_font.render("Depth-First Search", True, Colors.Blue)
+                        text2 = self.desc_font.render("Does not guarantee shortest-path", True, Colors.BlackHalfAlpha)
                     elif algorithm.algorithm == Algorithms.Dijkstra:
-                        text = self.font.render("Dijkstra's Algorithm", True, Colors.Red)
+                        text = self.title_font.render("Dijkstra's Algorithm", True, Colors.Blue)
+                        text2 = self.desc_font.render("Guarantees shortest-path", True, Colors.BlackHalfAlpha)
                     elif algorithm.algorithm == Algorithms.AStar:
-                        text = self.font.render("A* Search Algorithm", True, Colors.Red)
+                        text = self.title_font.render("A* Search Algorithm", True, Colors.Blue)
+                        text2 = self.desc_font.render("Guarantees shortest-path", True, Colors.BlackHalfAlpha)
 
-                    self.window.blit(text, (x + GRID_WIDTH // 4 - text.get_width() // 2,
-                                            y - Controller.AlgoGridPadding // 8 - text.get_height() // 2))
+                    self.window.blit(text, (x, y - Controller.AlgoGridPadding // 5 - text.get_height()))
+                    self.window.blit(text2, (x, y - Controller.AlgoGridPadding // 16 - text.get_height() // 2))
 
             pygame.display.update()

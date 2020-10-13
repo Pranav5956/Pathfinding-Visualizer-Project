@@ -1,5 +1,6 @@
 import pygame
 from Utilities.Constants import CellStates, Actions, Colors
+from Utilities.Algorithms import Algorithms
 
 
 class GridParent:
@@ -98,6 +99,8 @@ class GridEdit(GridParent):
         self.action = Actions.Start
 
         self.start, self.end = None, None
+        self.clearing = False
+        self.algorithm = None
 
         start_exists, end_exists = False, False
 
@@ -121,6 +124,17 @@ class GridEdit(GridParent):
                     break
 
     def update(self):
+        if self.clearing:
+            try:
+                pos, state = next(self.algorithm)
+
+                if pos != self.start and pos != self.end:
+                    px, py = pos
+                    self.grid[py][px] = state
+            except StopIteration:
+                self.clearing = False
+                self.algorithm = None
+
         super().update()
 
         # Draw helper squares
@@ -169,3 +183,7 @@ class GridEdit(GridParent):
                 self.action = Actions.End
             else:
                 self.grid[col][row] = CellStates.Free if self.grid[col][row] == CellStates.Block else CellStates.Block
+
+    def clear(self):
+        self.clearing = True
+        self.algorithm = Algorithms.ClearGrid(self.cells_per_row, self.cells_per_col)
