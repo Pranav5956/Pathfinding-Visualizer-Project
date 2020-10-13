@@ -6,6 +6,7 @@ from Utilities.Controller import Controller
 def main():
     pygame.init()
     window = pygame.display.set_mode(size=SIZE, flags=pygame.FULLSCREEN)
+    # window = pygame.display.set_mode(size=SIZE)
     Controller(window=window)
     pygame.quit()
 

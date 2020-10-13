@@ -23,10 +23,10 @@ class Controller:
 
         # Algorithm controllers
         self.algorithms = [
+            Algorithms.DepthFirstSearch,
             Algorithms.BreadthFirstSearch,
-            Algorithms.BreadthFirstSearch,
-            Algorithms.BreadthFirstSearch,
-            Algorithms.BreadthFirstSearch
+            Algorithms.Dijkstra,
+            Algorithms.AStar
         ]
         self.algorithm_grids = None
         self.algorithms_completed = True
@@ -123,6 +123,12 @@ class Controller:
                     algorithm = self.algorithm_grids[row + 2 * col]
                     if algorithm.algorithm == Algorithms.BreadthFirstSearch:
                         text = self.font.render("Breadth-First Search", True, Colors.Red)
+                    elif algorithm.algorithm == Algorithms.DepthFirstSearch:
+                        text = self.font.render("Depth-First Search", True, Colors.Red)
+                    elif algorithm.algorithm == Algorithms.Dijkstra:
+                        text = self.font.render("Dijkstra's Algorithm", True, Colors.Red)
+                    elif algorithm.algorithm == Algorithms.AStar:
+                        text = self.font.render("A* Search Algorithm", True, Colors.Red)
 
                     self.window.blit(text, (x + GRID_WIDTH // 4 - text.get_width() // 2,
                                             y - Controller.AlgoGridPadding // 8 - text.get_height() // 2))
