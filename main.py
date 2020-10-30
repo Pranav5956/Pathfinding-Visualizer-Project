@@ -1,7 +1,6 @@
 from Utilities.Grid import pygame
 from Utilities.Constants import SIZE
-from Utilities.Controller import Controller
-import os
+from Utilities.Controller import Controller, os
 
 
 def main():

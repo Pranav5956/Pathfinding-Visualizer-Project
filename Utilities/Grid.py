@@ -1,5 +1,5 @@
 import pygame
-from Utilities.Constants import CellStates, Actions, Colors
+from Utilities.Constants import CellStates, Actions, Colors, Orientations
 from Utilities.Algorithms import Algorithms
 
 
@@ -12,6 +12,7 @@ class GridParent:
             self.grid = [[CellStates.Free for _ in range(self.cells_per_row)] for _ in range(self.cells_per_col)]
         else:
             self.grid = grid
+        self.grid_copy = [[cell for cell in row] for row in self.grid]
 
         self.window = window
 
@@ -34,6 +35,9 @@ class GridParent:
 
     def update(self):
         self.draw()
+
+    def set_grid(self, grid):
+        self.grid = [[cell for cell in row] for row in grid]
 
     def draw(self):
         # Draw the squares
@@ -62,7 +66,6 @@ class GridParent:
 class GridDisplayAlgorithm(GridParent):
     def __init__(self, x, y, width, height, window, cell_size, start, end, algorithm, grid=None):
         super().__init__(x, y, width, height, window, cell_size, grid)
-        self.grid_copy = [[cell for cell in row] for row in self.grid]
         self.start, self.end = start, end
         self.algorithm = algorithm
         self.algorithm_execution = None
@@ -72,24 +75,36 @@ class GridDisplayAlgorithm(GridParent):
         self.grid[sy][sx] = CellStates.Start
         self.grid[ey][ex] = CellStates.End
 
+        self.attributes = None
+
     def update(self):
         if self.algorithm_running:
             try:
-                pos, state = next(self.algorithm_execution)
+                algorithm_data = next(self.algorithm_execution)
+                if type(algorithm_data) == list:
+                    pos, state = algorithm_data
 
-                if pos != self.start and pos != self.end:
-                    px, py = pos
-                    self.grid[py][px] = state
+                    if pos != self.start and pos != self.end:
+                        px, py = pos
+                        self.grid[py][px] = state
+                elif type(algorithm_data) == dict:
+                    self.attributes = list(algorithm_data.values())
             except StopIteration:
                 self.algorithm_running = False
 
         super().update()
+
+    def get_stats(self):
+        if self.attributes:
+            return self.attributes
+        return None
 
     def run_pathfinding_algorithm(self):
         if not self.algorithm_running:
             if self.grid != self.grid_copy:
                 self.grid = [[cell for cell in row] for row in self.grid_copy]
             self.algorithm_running = True
+            self.attributes = None
             self.algorithm_execution = self.algorithm(self.grid, self.start, self.end, self.cells_per_row, self.cells_per_col)
 
 
@@ -99,9 +114,16 @@ class GridEdit(GridParent):
         self.action = Actions.Start
 
         self.start, self.end = None, None
-        self.clearing = False
+        self.algorithm_running = False
         self.algorithm = None
 
+        if grid is not None:
+            self.set_grid(grid)
+
+    def set_grid(self, grid):
+        self.action = Actions.Start
+        self.grid = [[cell for cell in row] for row in grid]
+        self.start, self.end = None, None
         start_exists, end_exists = False, False
 
         if grid is not None:
@@ -124,15 +146,15 @@ class GridEdit(GridParent):
                     break
 
     def update(self):
-        if self.clearing:
+        if self.algorithm_running:
             try:
                 pos, state = next(self.algorithm)
 
                 if pos != self.start and pos != self.end:
                     px, py = pos
                     self.grid[py][px] = state
-            except StopIteration:
-                self.clearing = False
+            except (StopIteration, ValueError):
+                self.algorithm_running = False
                 self.algorithm = None
 
         super().update()
@@ -185,5 +207,15 @@ class GridEdit(GridParent):
                 self.grid[col][row] = CellStates.Free if self.grid[col][row] == CellStates.Block else CellStates.Block
 
     def clear(self):
-        self.clearing = True
+        self.algorithm_running = True
         self.algorithm = Algorithms.ClearGrid(self.cells_per_row, self.cells_per_col)
+
+    def recursive_maze_generation(self):
+        self.algorithm_running = True
+        self.grid = [[cell if cell in (CellStates.Start, CellStates.End) else CellStates.Free for cell in row] for row in self.grid]
+        self.algorithm = Algorithms.RecursiveDivision(self.grid, self.cells_per_row, self.cells_per_col)
+
+    def dfs_maze_generation(self):
+        self.algorithm_running = True
+        self.grid = [[cell if cell in (CellStates.Start, CellStates.End) else CellStates.Block for cell in row] for row in self.grid]
+        self.algorithm = Algorithms.DFSMaze(self.grid, 1, 1, self.cells_per_row - 2, self.cells_per_col - 2)
