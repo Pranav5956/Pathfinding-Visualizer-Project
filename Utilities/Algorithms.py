@@ -1,7 +1,8 @@
 from Utilities.Constants import CellStates, Orientations
 from random import shuffle, randint, randrange
-from math import inf
+from math import inf, sqrt
 from heapdict import heapdict
+import heapq
 import time
 
 movement_offsets = [(0, 1), (0, -1), (1, 0), (-1, 0)]
@@ -17,7 +18,7 @@ def retrace_path(distance, previous, end):
 
             current = previous[current]
 
-    path.append({'Cells': len(distance), 'Cost': len(path), 'Success': distance.get(end, False) & True})
+    path.append({'Cells': len(distance), 'Cost': len(path), 'Success': distance.get(end, None) is not None})
     return path
 
 
@@ -107,6 +108,7 @@ def dijkstra(grid, start, end, cells_per_row, cells_per_col):
 
     while queue:
         current = cx, cy = queue.pop(0)
+        found = False
 
         shuffle(movement_offsets)
         neighbors = [
@@ -122,10 +124,16 @@ def dijkstra(grid, start, end, cells_per_row, cells_per_col):
                 visited[neighbor] = True
                 yield [neighbor, CellStates.Neighbor]
 
+                if neighbor == end:
+                    found = True
+
                 hop = distance.get(current, inf) + 1
                 if hop < distance.get(neighbor, inf):
                     distance[neighbor] = hop
                     previous[neighbor] = current
+
+        if found:
+            break
 
     path = retrace_path(distance, previous, end)[::-1]
     for cell in path:
@@ -133,20 +141,21 @@ def dijkstra(grid, start, end, cells_per_row, cells_per_col):
 
 
 def a_star(grid, start, end, cells_per_row, cells_per_col):
-    open_set = [start]
-    previous = {}
-    g_score = {start: 0}
-    f_score = {start: h_score(start, end)}
+    g = {start: 0}
 
-    while open_set:
-        potential_f_scores = heapdict([(x, f_score.get(x, inf)) for x in open_set])     # Heap-based Priority-queue
-        current = (cx, cy) = potential_f_scores.popitem()[0]
+    open_set = [(h_score(start, end), start)]
+    closed_set = set([])
+
+    previous = {}
+
+    while list(open_set):
+        _, current = heapq.heappop(open_set)
+
         if current == end:
             break
 
-        open_set.remove(current)
-
         shuffle(movement_offsets)
+        cx, cy = current
         neighbors = [
             (cx + x_offset, cy + y_offset) for x_offset, y_offset in movement_offsets  # 4-Dir
             if 0 <= cx + x_offset < cells_per_row
@@ -155,18 +164,173 @@ def a_star(grid, start, end, cells_per_row, cells_per_col):
         ]
 
         for neighbor in neighbors:
-            yield [neighbor, CellStates.Neighbor]
-
-            tentative_g_score = g_score.get(current, inf) + 1
-            if tentative_g_score < g_score.get(neighbor, inf):
+            if neighbor not in open_set and neighbor not in closed_set:
+                yield [neighbor, CellStates.Neighbor]
+                g[neighbor] = g[current] + 1
                 previous[neighbor] = current
-                g_score[neighbor] = tentative_g_score
-                f_score[neighbor] = g_score[neighbor] + h_score(neighbor, end)
-                if neighbor not in open_set:
-                    open_set.append(neighbor)
+                f = g[neighbor] + h_score(neighbor, end)
+                heapq.heappush(open_set, (f, neighbor))
+            else:
+                if g[neighbor] > g[current] + 1:
+                    g[neighbor] = g[current] + 1
+                    previous[neighbor] = current
 
-    path = retrace_path(g_score, previous, end)[::-1]
+                    if neighbor in closed_set:
+                        closed_set.remove(neighbor)
+                        f = g[neighbor] + h_score(neighbor, end)
+                        heapq.heappush(open_set, (f, neighbor))
+
+        closed_set.add(current)
+
+    path = retrace_path(g, previous, end)[::-1]
     for cell in path:
+        yield cell
+
+
+def weighted_a_star(grid, start, end, cells_per_row, cells_per_col):
+    g = {start: 0}
+
+    open_set = [(h_score(start, end), start)]
+    closed_set = set([])
+
+    previous = {}
+    w = 1.2
+
+    while list(open_set):
+        _, current = heapq.heappop(open_set)
+
+        if current == end:
+            break
+
+        shuffle(movement_offsets)
+        cx, cy = current
+        neighbors = [
+            (cx + x_offset, cy + y_offset) for x_offset, y_offset in movement_offsets  # 4-Dir
+            if 0 <= cx + x_offset < cells_per_row
+            and 0 <= cy + y_offset < cells_per_col
+            and grid[cy + y_offset][cx + x_offset] is not CellStates.Block
+        ]
+
+        for neighbor in neighbors:
+            if neighbor not in open_set and neighbor not in closed_set:
+                yield [neighbor, CellStates.Neighbor]
+                g[neighbor] = g[current] + 1
+                previous[neighbor] = current
+                f = g[neighbor] + h_score(neighbor, end, w)
+                heapq.heappush(open_set, (f, neighbor))
+            else:
+                if g[neighbor] > g[current] + 1:
+                    g[neighbor] = g[current] + 1
+                    previous[neighbor] = current
+
+                    if neighbor in closed_set:
+                        closed_set.remove(neighbor)
+                        f = g[neighbor] + h_score(neighbor, end, w)
+                        heapq.heappush(open_set, (f, neighbor))
+
+        closed_set.add(current)
+
+    path = retrace_path(g, previous, end)[::-1]
+    for cell in path:
+        yield cell
+
+
+def astar_bidirectional_helper(grid, open_set, closed_set, g, previous, target, cells_per_row, cells_per_col):
+    if open_set:
+        _, current = heapq.heappop(open_set)
+        shuffle(movement_offsets)
+        cx, cy = current
+        neighbors = [
+            (cx + x_offset, cy + y_offset) for x_offset, y_offset in movement_offsets  # 4-Dir
+            if 0 <= cx + x_offset < cells_per_row
+            and 0 <= cy + y_offset < cells_per_col
+            and grid[cy + y_offset][cx + x_offset] is not CellStates.Block
+        ]
+
+        for neighbor in neighbors:
+            if neighbor not in open_set and neighbor not in closed_set:
+                yield [neighbor, CellStates.Neighbor]
+                g[neighbor] = g[current] + 1
+                previous[neighbor] = current
+                f = g[neighbor] + h_score(neighbor, target)
+                heapq.heappush(open_set, (f, neighbor))
+            else:
+                if g[neighbor] > g[current] + 1:
+                    g[neighbor] = g[current] + 1
+                    previous[neighbor] = current
+
+                    if neighbor in closed_set:
+                        closed_set.remove(neighbor)
+                        f = g[neighbor] + h_score(neighbor, target)
+                        heapq.heappush(open_set, (f, neighbor))
+
+        closed_set.add(current)
+        yield current
+
+
+def check_intersecting(start_open_list, start_closed_list, end_open_list, end_closed_list):
+    start_considered_nodes = [*start_open_list, *list(start_closed_list)]
+    end_considered_nodes = [*end_open_list, *list(end_closed_list)]
+
+    return list(set(start_considered_nodes).intersection(set(end_considered_nodes)))
+
+
+def bidirectional_path(intersect, start_parent, end_parent, start_open_list, start_closed_list, end_open_list, end_closed_list):
+    path = []
+    if intersect:
+        path1, path2 = [], []
+        current = intersect
+
+        while current:
+            path1.append([current, CellStates.ShortestPath])
+            current = start_parent.get(current, None)
+
+        current = intersect
+
+        while current:
+            path2.append([current, CellStates.ShortestPath])
+            current = end_parent.get(current, None)
+
+        path = path1[::-1] + path2[1:]
+
+    cells_considered = {*start_open_list, *list(start_closed_list), *end_open_list, *list(end_closed_list)}
+    path_length = len(path)
+    path.append({'Cells': len(cells_considered), 'Cost': path_length - 2, 'Success': intersect is not None})
+    return path
+
+
+def astar_bidirectional_search(grid, start, end, cells_per_row, cells_per_col):
+    start_open_list = [(0, start)]
+    start_closed_list = set([])
+    start_g = {start: 0}
+    start_parent = {}
+
+    end_open_list = [(0, end)]
+    end_closed_list = set([])
+    end_g = {end: 0}
+    end_parent = {}
+
+    intersect = None
+    target = end
+
+    while start_open_list and end_open_list:
+        for output in astar_bidirectional_helper(grid, start_open_list, start_closed_list, start_g, start_parent, target, cells_per_row, cells_per_col):
+            if type(output) == tuple:
+                target = output
+            else:
+                yield output
+        for output in astar_bidirectional_helper(grid, end_open_list, end_closed_list, end_g, end_parent, target, cells_per_row, cells_per_col):
+            if type(output) == tuple:
+                target = output
+            else:
+                yield output
+
+        intersect = check_intersecting(start_open_list, start_closed_list, end_open_list, end_closed_list)
+        if intersect:
+            intersect = intersect[0]
+            break
+
+    for cell in bidirectional_path(intersect, start_parent, end_parent, start_open_list, start_closed_list, end_open_list, end_closed_list):
         yield cell
 
 
@@ -266,14 +430,16 @@ def dfs_maze(grid, x, y, width, height):
 
 
 class Algorithms:
+    Bidirectional = astar_bidirectional_search
     BreadthFirstSearch = breadth_first_search
     DepthFirstSearch = depth_first_search
     Dijkstra = dijkstra
     AStar = a_star
+    WAStar = weighted_a_star
     ClearGrid = clear_grid
     RecursiveDivision = recursive_division
     DFSMaze = dfs_maze
 
 
-def h_score(pa, pb):
-    return (pb[0] - pa[0]) ** 2 + (pb[1] - pa[1]) ** 2
+def h_score(pa, pb, w=1.0):
+    return w * sqrt((pb[0] - pa[0]) ** 2 + (pb[1] - pa[1]) ** 2)

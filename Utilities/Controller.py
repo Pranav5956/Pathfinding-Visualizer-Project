@@ -27,10 +27,10 @@ class Controller:
 
         # Algorithm controllers
         self.algorithms = [
-            Algorithms.DepthFirstSearch,
             Algorithms.BreadthFirstSearch,
-            Algorithms.Dijkstra,
-            Algorithms.AStar
+            Algorithms.AStar,
+            Algorithms.WAStar,
+            Algorithms.Bidirectional
         ]
         self.algorithm_grids = None
         self.algorithms_completed = True
@@ -160,8 +160,8 @@ class Controller:
         while self.running:
             self.window.fill(Colors.White)
 
-            if self.state is GridStates.Edit:
-                self.window.blit(self.title, (0, 0))
+            # if self.state is GridStates.Edit:
+                # self.window.blit(self.title, (0, 0))
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT or event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
@@ -254,11 +254,14 @@ class Controller:
                     elif algorithm.algorithm == Algorithms.DepthFirstSearch:
                         algorithm_name = "Depth-First Search"
                         algorithm_desc = "Does not guarantee shortest-path"
-                    elif algorithm.algorithm == Algorithms.Dijkstra:
-                        algorithm_name = "Dijkstra's Algorithm"
+                    elif algorithm.algorithm == Algorithms.WAStar:
+                        algorithm_name = "Weighted A* (w=1.2)"
                         algorithm_desc = "Guarantees shortest-path"
                     elif algorithm.algorithm == Algorithms.AStar:
-                        algorithm_name = "A* Search Algorithm"
+                        algorithm_name = "A* Algorithm"
+                        algorithm_desc = "Guarantees shortest-path"
+                    elif algorithm.algorithm == Algorithms.Bidirectional:
+                        algorithm_name = "Bidirectional A*"
                         algorithm_desc = "Guarantees shortest-path"
 
                     text = self.title_font.render(algorithm_name, True, Colors.Blue)
@@ -281,7 +284,7 @@ class Controller:
                         cost_text = self.desc_font.render("Cost of Path : " + str(cost), True, cost_color)
                         reachable_color = get_color_level(reachable, min([val[2] for val in self.algorithm_attributes]),
                                                           max([val[2] for val in self.algorithm_attributes]))
-                        reachable_text = self.desc_font.render("Reachable? : " + "Yes" if reachable else "No", True, reachable_color)
+                        reachable_text = self.desc_font.render("Reachable? : Yes" if reachable else "Reachable? : No", True, reachable_color)
 
                         analysis_text = self.title_font.render("COMPARATIVE ANALYSIS", True, Colors.Black)
                         self.window.blit(analysis_text, (
